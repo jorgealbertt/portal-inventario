@@ -1,5 +1,5 @@
-const CACHE_NAME = "coisa-hogar-portal-v1";
-const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
+const CACHE_NAME = "coisa-hogar-portal-v2";
+const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./apple-touch-icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
@@ -7,7 +7,7 @@ self.addEventListener("install", (event) => {
     await cache.addAll(APP_SHELL);
     const index = await cache.match("./index.html");
     const html = await index.text();
-    const assets = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))(?:\?[^"]*)?"/g)]
+    const assets = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))(?:\?[^\"]*)?"/g)]
       .map((match) => match[1]);
     if (!assets.length) throw new Error("No se encontraron los recursos compilados de la aplicación.");
     await cache.addAll(assets);

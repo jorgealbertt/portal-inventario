@@ -23,7 +23,7 @@ for (const match of scripts) {
   html = html.replace(match[0], () => `<script>\n${bundle}\n</script>`);
 }
 
-html = html.replace(/<link\b(?=[^>]*\brel=["'](?:manifest|icon)["'])[^>]*>\s*/gi, "");
+html = html.replace(/<link\b(?=[^>]*\brel=["'](?:manifest|icon|apple-touch-icon)["'])[^>]*>\s*/gi, "");
 if (/<script\b[^>]*\bsrc=["']/i.test(html) || /<script\b[^>]*\btype=["']module["']/i.test(html) || /<link\b[^>]*\brel=["']stylesheet["']/i.test(html)) {
   throw new Error("The standalone portal must not depend on external scripts or stylesheets.");
 }

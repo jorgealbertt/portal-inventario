@@ -7,8 +7,10 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#f4f7fb",
   "theme_color": "#10233f",
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "./icon.svg",
