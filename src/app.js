@@ -1,5 +1,6 @@
 import "./styles.css";
 import { formatInventorySummary, parseInventory } from "./inventory.js";
+import { parseOrderWorkbook } from "./import-xlsx.js";
 import { createWorkbookBlob, safeOrderFilename } from "./export-xlsx.js";
 import {
   addLine,
@@ -101,13 +102,17 @@ function updateInventoryBadge() {
   if (!state.inventory.length) {
     badge.classList.remove("is-ready");
     badge.innerHTML = '<span class="status-dot"></span><span>Inventario pendiente</span>';
-    $("fileStatus").textContent = "Carga el archivo XML actualizado de Stellar";
-    $("fileDetail").textContent = "Tu inventario se queda guardado en este dispositivo.";
+    $("fileStatus").textContent = location.protocol === "file:" ? "Carga tu archivo XML" : "Inventario central disponible";
+    $("fileDetail").textContent = location.protocol === "file:"
+      ? "La carga desde repositorio requiere abrir el portal web."
+      : "Pulsa «Repositorio» para cargarlo o elige tu propio XML.";
     $("searchInput").disabled = true;
     $("departmentFilter").disabled = true;
     $("quantityInput").disabled = true;
     $("unitInput").disabled = true;
     $("addButton").disabled = true;
+    $("orderExcelToggle").disabled = true;
+    $("orderExcelFile").disabled = true;
     return;
   }
   const info = state.inventoryInfo || {};
@@ -121,6 +126,8 @@ function updateInventoryBadge() {
   $("quantityInput").disabled = false;
   $("unitInput").disabled = false;
   $("addButton").disabled = !selectedProduct;
+  $("orderExcelToggle").disabled = false;
+  $("orderExcelFile").disabled = false;
 }
 
 function renderDepartments() {
@@ -160,7 +167,7 @@ function renderProducts() {
 
   const list = $("productList");
   if (!state.inventory.length) {
-    list.innerHTML = '<div class="empty-state"><span class="empty-icon" aria-hidden="true">▦</span><strong>Tu catálogo aparecerá aquí</strong><span>Selecciona el XML que exportaste desde Stellar.</span></div>';
+    list.innerHTML = '<div class="empty-state"><span class="empty-icon" aria-hidden="true">▦</span><strong>Tu catálogo aparecerá aquí</strong><span>Carga el inventario desde el repositorio o selecciona un archivo XML.</span></div>';
     return;
   }
   if (!shown.length) {
@@ -200,7 +207,7 @@ function renderOrder() {
 
   const content = $("requestContent");
   if (!lineCount) {
-    content.innerHTML = '<div class="request-empty"><span class="empty-icon" aria-hidden="true">▤</span><strong>Tu pedido está vacío</strong><span>Agrega productos desde el catálogo.</span></div>';
+    content.innerHTML = '<div class="request-empty"><span class="empty-icon" aria-hidden="true">▤</span><strong>Tu pedido está vacío</strong><span>Agrega productos desde el catálogo o importa una reposición desde Excel.</span></div>';
     return;
   }
   content.innerHTML = `<div class="request-lines">${draft.lines.map((line, index) => `
@@ -238,8 +245,11 @@ function setSelectedProduct(product) {
 
 function setImportBusy(busy) {
   $("loadButton").disabled = busy;
+  $("repoLoadButton").disabled = busy || location.protocol === "file:";
   $("loadTopButton").disabled = busy;
   $("dropZone").disabled = busy;
+  $("orderExcelToggle").disabled = busy || !state.inventory.length;
+  $("orderExcelFile").disabled = busy || !state.inventory.length;
   $("catalogPanel").setAttribute("aria-busy", String(busy));
   $("orderPanel").setAttribute("aria-busy", String(busy));
   for (const id of ["managerInput", "phoneInput", "orderInput", "quantityInput", "unitInput", "addButton", "exportButton", "clearOrderButton"]) {
@@ -258,6 +268,56 @@ function updateDraftField(field, value) {
   saveDraftSoon();
 }
 
+async function commitInventoryText(xmlText, fileName, fileSize, confirmReplacement) {
+  const result = parseInventory(xmlText);
+  const nextDraft = reconcileDraft(state.draft, result.products);
+  const missing = countMissingLines(nextDraft);
+  if (confirmReplacement && state.inventory.length) {
+    const details = state.draft.lines.length
+      ? missing
+        ? `Se conservarán los ${state.draft.lines.length} productos del pedido. ${missing} no coinciden con el nuevo inventario y quedarán marcados para revisar antes de exportar.`
+        : `Se conservarán los ${state.draft.lines.length} productos del pedido y se actualizarán sus descripciones y precios.`
+      : "El pedido actual está vacío y no se perderán renglones.";
+    if (!window.confirm(`¿Reemplazar el inventario guardado en este dispositivo?\n\n${details}`)) {
+      showMessage("No se cambió el inventario. La versión anterior sigue intacta.", "info");
+      return false;
+    }
+  }
+
+  const info = {
+    fileName,
+    loadedAt: new Date().toISOString(),
+    productCount: result.products.length,
+    totalRecords: result.totalRecords,
+    inactiveRecords: result.inactiveRecords,
+    skippedRecords: result.skippedRecords,
+    fileSize
+  };
+  const nextState = { inventory: result.products, inventoryInfo: info, draft: nextDraft };
+  const save = persistenceQueue.then(() => writeSavedState(stateSnapshot(nextState)));
+  persistenceQueue = save.catch((error) => {
+    showMessage(`El inventario no se reemplazó porque no se pudo guardar en este dispositivo: ${error.message || "error de almacenamiento"}.`, "error");
+  });
+  await save;
+  state.inventory = nextState.inventory;
+  state.inventoryInfo = nextState.inventoryInfo;
+  state.draft = nextState.draft;
+  selectedProduct = null;
+  visibleProducts = PAGE_SIZE;
+  $("searchInput").value = "";
+  $("departmentFilter").value = "";
+  $("selectedProduct").textContent = "Toca un producto del catálogo.";
+  $("selectedProduct").parentElement.classList.remove("has-selection");
+  renderDepartments();
+  renderAll();
+
+  const summary = formatInventorySummary(result);
+  const note = result.inactiveRecords || result.skippedRecords ? ` ${summary}` : "";
+  showMessage(`Inventario actualizado: ${result.products.length.toLocaleString("es-VE")} productos activos. ${info.fileName} · ${inventoryDate(info.loadedAt)}.${note}`, "success");
+  showToast("Inventario guardado en este dispositivo.");
+  return true;
+}
+
 async function stageInventory(file) {
   if (!file) return;
   clearMessage();
@@ -273,62 +333,139 @@ async function stageInventory(file) {
   $("fileDetail").textContent = "La versión anterior sigue disponible mientras se revisa el archivo.";
 
   try {
-    const result = parseInventory(await file.text());
-    const nextDraft = reconcileDraft(state.draft, result.products);
-    const missing = countMissingLines(nextDraft);
-    if (state.draft.lines.length) {
-      const details = missing
-        ? `Se conservarán los ${state.draft.lines.length} productos del pedido. ${missing} no coinciden con el nuevo inventario y quedarán marcados para revisar; deberás quitarlos o volverlos a agregar antes de exportar.`
-        : `Se conservarán los ${state.draft.lines.length} productos del pedido y se actualizarán sus descripciones y precios con este inventario.`;
-      if (!window.confirm(`¿Reemplazar el inventario actual?\n\n${details}`)) {
-        showMessage("No se cambió el inventario. Tu pedido y la versión anterior siguen intactos.", "info");
-        return;
-      }
-    }
-
-    const info = {
-      fileName: file.name,
-      loadedAt: new Date().toISOString(),
-      productCount: result.products.length,
-      totalRecords: result.totalRecords,
-      inactiveRecords: result.inactiveRecords,
-      skippedRecords: result.skippedRecords,
-      fileSize: file.size
-    };
-    const nextState = { inventory: result.products, inventoryInfo: info, draft: nextDraft };
-    const save = persistenceQueue.then(() => writeSavedState(stateSnapshot(nextState)));
-    persistenceQueue = save.catch((error) => {
-      showMessage(`El inventario no se reemplazó porque no se pudo guardar en este dispositivo: ${error.message || "error de almacenamiento"}.`, "error");
-    });
-    await save;
-    state.inventory = nextState.inventory;
-    state.inventoryInfo = nextState.inventoryInfo;
-    state.draft = nextState.draft;
-    selectedProduct = null;
-    visibleProducts = PAGE_SIZE;
-    $("searchInput").value = "";
-    $("departmentFilter").value = "";
-    $("selectedProduct").textContent = "Toca un producto del catálogo.";
-    $("selectedProduct").parentElement.classList.remove("has-selection");
-    renderDepartments();
-    renderAll();
-    committed = true;
-
-    const summary = formatInventorySummary(result);
-    const note = result.inactiveRecords || result.skippedRecords ? ` ${summary}` : "";
-    showMessage(`Inventario actualizado: ${result.products.length.toLocaleString("es-VE")} productos activos. ${info.fileName} · ${inventoryDate(info.loadedAt)}.${note}`, "success");
-    showToast("Inventario guardado en este dispositivo.");
+    committed = await commitInventoryText(
+      await file.text(),
+      file.name,
+      file.size,
+      state.draft.lines.length > 0
+    );
   } catch (error) {
-    const current = state.inventoryInfo;
-    if (current) {
-      $("fileStatus").textContent = current.fileName;
-      $("fileDetail").textContent = `${state.inventory.length.toLocaleString("es-VE")} productos · versión anterior sin cambios.`;
-    }
     showMessage(error.message || "No se pudo leer el inventario. La versión anterior no cambió.");
   } finally {
     setImportBusy(false);
     if (!committed) updateInventoryBadge();
     $("xmlFile").value = "";
+  }
+}
+
+async function loadRepositoryInventory(initial = false) {
+  clearMessage();
+  clearTimeout(draftSaveTimer);
+  let committed = false;
+  setImportBusy(true);
+  $("fileStatus").textContent = "Cargando desde el repositorio…";
+  $("fileDetail").textContent = "Tu inventario actual no cambiará hasta validar el XML.";
+  try {
+    const response = await fetch("./INVENTARIO.xml", { cache: "no-store" });
+    if (!response.ok) throw new Error(`El repositorio respondió con el estado ${response.status}.`);
+    const xmlText = await response.text();
+    const fileSize = new Blob([xmlText]).size;
+    if (fileSize > MAX_FILE_SIZE) {
+      throw new Error("El XML del repositorio supera el límite de 20 MB.");
+    }
+    committed = await commitInventoryText(
+      xmlText,
+      "INVENTARIO.xml · Repositorio",
+      fileSize,
+      !initial && state.inventory.length > 0
+    );
+  } catch (error) {
+    showMessage(`No se pudo cargar el XML del repositorio: ${error.message || "error de conexión"}. Tu inventario guardado sigue intacto.`);
+  } finally {
+    setImportBusy(false);
+    if (!committed) updateInventoryBadge();
+  }
+}
+
+async function importOrderFile(file) {
+  if (!file) return;
+  clearMessage();
+  $("orderExcelToggle").checked = false;
+  if (file.size > MAX_FILE_SIZE) {
+    showMessage("El Excel supera el límite de 20 MB.");
+    return;
+  }
+  if (!state.inventory.length) {
+    showMessage("Carga primero el inventario para poder relacionar los códigos del Excel.");
+    return;
+  }
+
+  setImportBusy(true);
+  try {
+    const parsed = parseOrderWorkbook(new Uint8Array(await file.arrayBuffer()));
+    const byCode = new Map(state.inventory.map((product) => [product.code.toLocaleLowerCase("es"), product]));
+    let nextDraft = state.draft;
+    let added = 0;
+    let rejected = 0;
+    const unmatchedCodes = new Set();
+    const rejectedCodes = new Set();
+    for (const importedLine of parsed.lines) {
+      try {
+        const code = importedLine.code.trim();
+        const product = byCode.get(code.toLocaleLowerCase("es"));
+        if (product) {
+          nextDraft = addLine(nextDraft, product, importedLine.quantity, importedLine.unit);
+        } else {
+          const fullDescription = [importedLine.item, importedLine.description].filter(Boolean).join(" ").trim() || code;
+          const item = importedLine.item || fullDescription.split(/\s+/)[0];
+          const missingProduct = {
+            code,
+            item,
+            fullDescription,
+            shortDescription: importedLine.description || fullDescription.slice(item.length).trim(),
+            department: "",
+            brand: "",
+            cost: 0,
+            price: 0
+          };
+          const existingIndex = nextDraft.lines.findIndex((line) =>
+            line.missing &&
+            line.product.code.toLocaleLowerCase("es") === code.toLocaleLowerCase("es") &&
+            line.unit === importedLine.unit
+          );
+          if (existingIndex >= 0) {
+            const lines = nextDraft.lines.map((line, index) => index === existingIndex
+              ? { ...line, quantity: line.quantity + importedLine.quantity }
+              : line);
+            nextDraft = { ...nextDraft, lines };
+          } else {
+            nextDraft = {
+              ...nextDraft,
+              lines: [...nextDraft.lines, { product: missingProduct, quantity: importedLine.quantity, unit: importedLine.unit, missing: true }]
+            };
+          }
+          unmatchedCodes.add(code);
+        }
+        added += 1;
+      } catch {
+        rejected += 1;
+        rejectedCodes.add(importedLine.code);
+      }
+    }
+
+    if (added) saveDraft(nextDraft);
+    const notes = [];
+    if (unmatchedCodes.size) {
+      const examples = [...unmatchedCodes].slice(0, 6).join(", ");
+      notes.push(`${unmatchedCodes.size} códigos no están en el inventario y quedaron marcados para revisar (${examples}${unmatchedCodes.size > 6 ? "…" : ""})`);
+    }
+    if (parsed.skippedRows.length) {
+      notes.push(`${parsed.skippedRows.length} filas sin unidad válida omitidas (fila${parsed.skippedRows.length === 1 ? "" : "s"} ${parsed.skippedRows.slice(0, 8).join(", ")})`);
+    }
+    if (rejected) {
+      const examples = [...rejectedCodes].slice(0, 6).join(", ");
+      notes.push(`${rejected} renglones no se pudieron agregar${examples ? ` (${examples}${rejectedCodes.size > 6 ? "…" : ""})` : ""}`);
+    }
+    showMessage(
+      `${added} renglones agregados desde «${file.name}».${notes.length ? ` ${notes.join(". ")}.` : ""}`,
+      notes.length ? "info" : "success"
+    );
+    if (added) showToast("Reposición agregada al pedido actual.");
+  } catch (error) {
+    showMessage(error.message || "No se pudo leer el Excel.");
+  } finally {
+    setImportBusy(false);
+    $("orderExcelFile").value = "";
   }
 }
 
@@ -364,20 +501,14 @@ function setMobileView(view) {
 
 function configureImportControls() {
   const input = $("xmlFile");
-  const choose = () => {
-    try {
-      if (typeof input.showPicker === "function") input.showPicker();
-      else input.click();
-    } catch (pickerError) {
-      try {
-        input.click();
-      } catch (clickError) {
-        showMessage(`No se pudo abrir el selector de archivos: ${clickError.message || pickerError.message || "intenta tocar «Elegir archivo» otra vez"}.`);
-      }
-    }
-  };
+  $("repoLoadButton").title = location.protocol === "file:"
+    ? "Abre el portal web para cargar el inventario desde el repositorio."
+    : "";
+  $("repoLoadButton").disabled = location.protocol === "file:";
+  const choose = () => openFilePicker(input, "XML");
   $("loadButton").addEventListener("click", choose);
   $("loadTopButton").addEventListener("click", choose);
+  $("repoLoadButton").addEventListener("click", () => loadRepositoryInventory(false));
   $("dropZone").addEventListener("click", choose);
   input.addEventListener("change", () => {
     const file = input.files?.[0];
@@ -400,7 +531,39 @@ function configureImportControls() {
   dropZone.addEventListener("drop", (event) => stageInventory(event.dataTransfer?.files?.[0]));
 }
 
+function openFilePicker(input, description) {
+  try {
+    if (typeof input.showPicker === "function") input.showPicker();
+    else input.click();
+  } catch (pickerError) {
+    try {
+      input.click();
+    } catch (clickError) {
+      showMessage(`No se pudo abrir el selector de archivos ${description}: ${clickError.message || pickerError.message || "intenta otra vez"}.`);
+    }
+  }
+}
+
 function configureOrderControls() {
+  const orderExcelToggle = $("orderExcelToggle");
+  const orderExcelFile = $("orderExcelFile");
+  orderExcelToggle.addEventListener("change", () => {
+    if (!orderExcelToggle.checked) return;
+    if (!state.inventory.length) {
+      orderExcelToggle.checked = false;
+      showMessage("Carga primero el inventario para poder relacionar los códigos del Excel.", "info");
+      return;
+    }
+    openFilePicker(orderExcelFile, "Excel");
+  });
+  orderExcelFile.addEventListener("change", () => {
+    const file = orderExcelFile.files?.[0];
+    orderExcelFile.value = "";
+    importOrderFile(file);
+  });
+  orderExcelFile.addEventListener("cancel", () => {
+    orderExcelToggle.checked = false;
+  });
   $("productList").addEventListener("click", (event) => {
     const button = event.target.closest("[data-code]");
     if (!button) return;
@@ -524,6 +687,38 @@ function updateConnectionStatus() {
   status.querySelector("span:last-child").textContent = offline ? "Sin conexión · modo local" : "En este dispositivo";
 }
 
+function setTheme(theme, persist = true) {
+  const isDark = theme === "dark";
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  $("themeToggle").setAttribute("aria-label", isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro");
+  $("themeToggle").setAttribute("aria-pressed", String(isDark));
+  $("themeToggle").querySelector(".theme-label").textContent = isDark ? "Tema claro" : "Tema oscuro";
+  document.querySelector('meta[name="theme-color"]').content = isDark ? "#0b1422" : "#10233f";
+  if (persist) {
+    try {
+      localStorage.setItem("coisa-hogar-theme", isDark ? "dark" : "light");
+    } catch {
+      showToast("No se pudo guardar la preferencia del tema en este dispositivo.");
+    }
+  }
+}
+
+function configureTheme() {
+  let savedTheme = "";
+  try {
+    savedTheme = localStorage.getItem("coisa-hogar-theme") || "";
+  } catch {
+    savedTheme = "";
+  }
+  const initialTheme = savedTheme === "light" || savedTheme === "dark"
+    ? savedTheme
+    : window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  setTheme(initialTheme, false);
+  $("themeToggle").addEventListener("click", () => {
+    setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+  });
+}
+
 async function registerOfflineSupport() {
   if (window.location.protocol === "file:" || window.location.protocol === "tauri:" || window.location.hostname === "tauri.localhost") return;
   if (!("serviceWorker" in navigator)) {
@@ -540,12 +735,16 @@ async function registerOfflineSupport() {
 configureImportControls();
 configureOrderControls();
 configureInstallPrompt();
+configureTheme();
 setMobileView("catalog");
 updateConnectionStatus();
 window.addEventListener("online", updateConnectionStatus);
 window.addEventListener("offline", updateConnectionStatus);
 async function startApp() {
   await restoreSavedState();
+  if (!state.inventory.length && location.protocol !== "file:" && navigator.onLine) {
+    await loadRepositoryInventory(true);
+  }
   registerOfflineSupport();
 }
 startApp();

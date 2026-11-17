@@ -23,7 +23,8 @@
         <div class="top-actions">
           <span id="connectionStatus" class="connection-status"><span class="status-dot"></span><span>En este dispositivo</span></span>
           <button id="installButton" class="button button-quiet install-button" type="button" hidden>Instalar app</button>
-          <button id="loadTopButton" class="button button-quiet top-load-button" type="button">Actualizar inventario</button>
+          <button id="themeToggle" class="button button-quiet theme-toggle" type="button" aria-label="Cambiar a tema oscuro" aria-pressed="false"><span aria-hidden="true">◐</span><span class="theme-label">Tema oscuro</span></button>
+          <button id="loadTopButton" class="button button-quiet top-load-button" type="button">Cargar archivo XML</button>
         </div>
       </header>
 
@@ -61,18 +62,22 @@
                 <h2 id="catalogTitle">Productos</h2>
                 <p>Busca por nombre, código o marca.</p>
               </div>
-              <button id="loadButton" class="button button-secondary panel-load-button" type="button">Cargar XML</button>
+              <div class="inventory-controls">
+                <button id="repoLoadButton" class="button button-primary panel-load-button repo-load-button" type="button"><span class="desktop-button-label">Actualizar desde repositorio</span><span class="mobile-button-label">Repositorio</span></button>
+                <button id="loadButton" class="button button-secondary panel-load-button" type="button"><span class="desktop-button-label">Archivo XML</span><span class="mobile-button-label">Archivo</span></button>
+              </div>
               <input id="xmlFile" class="visually-hidden" type="file" accept=".xml,.XML,text/xml,application/xml,application/octet-stream" aria-label="Seleccionar archivo de inventario XML">
             </div>
 
             <button id="dropZone" class="import-card" type="button">
               <span class="import-icon" aria-hidden="true">↑</span>
               <span class="import-copy">
-                <strong id="fileStatus">Carga el archivo XML actualizado de Stellar</strong>
-                <small id="fileDetail">Tu inventario se queda guardado en este dispositivo.</small>
+                <strong id="fileStatus">Inventario central disponible</strong>
+                <small id="fileDetail">Pulsa «Repositorio» para cargarlo o elige tu propio XML.</small>
               </span>
               <span class="import-action">Elegir archivo</span>
             </button>
+            <p class="repository-note">El inventario central se publica en un repositorio público y puede incluir costos y precios.</p>
 
             <div class="search-fields">
               <label class="search-box">
@@ -99,7 +104,7 @@
               <div class="empty-state">
                 <span class="empty-icon" aria-hidden="true">▦</span>
                 <strong>Tu catálogo aparecerá aquí</strong>
-                <span>Selecciona el XML que exportaste desde Stellar.</span>
+                <span>Carga el inventario desde el repositorio o selecciona un archivo XML.</span>
               </div>
             </div>
             <button id="showMoreButton" class="button button-secondary show-more" type="button" hidden>Ver más productos</button>
@@ -149,6 +154,14 @@
               </label>
             </div>
 
+            <div class="order-import">
+              <label class="order-import-toggle">
+                <input id="orderExcelToggle" type="checkbox">
+                <span><strong>Reposición desde Excel</strong><small>Agrega los productos de un .xlsx al pedido actual; no lo reemplaza.</small></span>
+              </label>
+              <input id="orderExcelFile" class="visually-hidden" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Seleccionar pedido Excel para reponer productos">
+            </div>
+
             <div id="reconcileNotice" class="reconcile-notice" role="status" hidden></div>
             <div id="requestContent" class="request-content">
               <div class="request-empty">
@@ -170,7 +183,7 @@
         </div>
 
         <footer class="app-footer">
-          <p>La información del inventario y los pedidos se guarda solo en este dispositivo.</p>
+          <p>La información del inventario local y los pedidos se guarda solo en este dispositivo. El XML central está disponible públicamente en el repositorio.</p>
           <p>Derechos de la aplicación: <strong>JORGE ALBERTO PAREJO LANDINEZ</strong>. Las marcas y los datos comerciales pertenecen a sus respectivos titulares.</p>
         </footer>
       </main>

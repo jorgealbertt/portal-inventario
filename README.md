@@ -4,13 +4,16 @@ Aplicación local, adaptable a teléfono y computadora, para consultar el invent
 
 ## Uso diario
 
-1. Exporta el inventario vigente desde Stellar en formato XML.
-2. Abre el portal y selecciona **Actualizar inventario** o **Cargar XML**. También puedes arrastrar el archivo al recuadro de importación en una computadora.
-3. La aplicación valida el archivo antes de reemplazar los datos. Si ya hay un pedido abierto, los renglones se conservan: los códigos que siguen existiendo reciben la descripción nueva y los que faltan quedan señalados. No se puede descargar el pedido hasta quitar esos renglones o agregarlos nuevamente desde el catálogo.
-4. Busca por código, descripción, marca o departamento; selecciona un producto, indica cantidad y unidad, y agrégalo al pedido.
-5. Descarga el archivo `.xlsx` cuando termines. La primera hoja conserva el formato del ejemplo de Valencia —logo, encabezado, ubicación, tabla y cantidades con unidad— y la segunda hoja `Base_Inventario` incluye los datos del XML, incluidos costos y precios.
+1. Pulsa **Actualizar desde repositorio** para cargar el XML central, o selecciona **Archivo XML** para usar un archivo de Stellar. También puedes arrastrar un XML al recuadro en una computadora.
+2. La aplicación valida el archivo antes de guardarlo en el dispositivo. Si ya existe un inventario local, el botón de repositorio pide confirmación; al publicar un XML nuevo no se reemplazan automáticamente los datos guardados en los teléfonos y computadoras.
+3. Busca por código, descripción, marca o departamento; selecciona un producto, indica cantidad y unidad, y agrégalo al pedido. Para continuar un pedido existente, activa **Reposición desde Excel** y elige su archivo `.xlsx`; los renglones se agregan al pedido actual. Los códigos que falten en el inventario quedan marcados para revisar y bloquean la descarga hasta corregirlos.
+4. Descarga el archivo `.xlsx` cuando termines. La primera hoja conserva el formato del ejemplo de Valencia —logo, encabezado, ubicación, tabla y cantidades con unidad— y la segunda hoja `Base_Inventario` incluye los datos del XML, incluidos costos y precios.
 
-Los productos, el último inventario válido y el borrador se guardan en IndexedDB en el perfil local del navegador o de la aplicación de escritorio. Los cambios del pedido se guardan automáticamente. No se suben archivos ni hay sincronización entre dispositivos; cada teléfono o computadora debe importar su propio XML. Mantén una copia segura del XML original. Al compartir un Excel, ten presente que también contiene la hoja completa del inventario y los costos.
+Los productos, el último inventario válido y el borrador se guardan en IndexedDB en el perfil local del navegador o de la aplicación de escritorio. Los cambios del pedido se guardan automáticamente. No se suben pedidos ni hay sincronización entre dispositivos; el XML central sí forma parte del sitio público y puede ser descargado por cualquier visitante. El XML incluye datos comerciales como costos y precios: no publiques allí información que deba ser confidencial. Mantén una copia segura del XML original. Al compartir un Excel, ten presente que también contiene la hoja completa del inventario y los costos.
+
+## Actualizar el XML central
+
+Reemplaza `public/INVENTARIO.xml` en el repositorio y publica los cambios. La nueva versión queda disponible en el sitio, pero los dispositivos que ya guardaron un inventario conservan su versión hasta que alguien pulse **Actualizar desde repositorio** y confirme el reemplazo. Un dispositivo nuevo carga el archivo central la primera vez que abre el portal. El XML se solicita sin caché del navegador o del service worker para evitar servir una copia antigua.
 
 El XML debe corresponder al reporte de Stellar `ReporteStellar` y contener registros `Registro` con código, descripción y estado activo. Los códigos de producto repetidos se rechazan para evitar agregar artículos ambiguos. Archivos de más de 20 MB no se procesan.
 
@@ -22,7 +25,7 @@ Requiere Node.js y npm.
 
 La versión web se publica automáticamente en [https://jorgealbertt.github.io/portal-inventario/](https://jorgealbertt.github.io/portal-inventario/) al subir cambios a GitHub. Abre ese enlace en el navegador de tu teléfono o computadora. En el teléfono puedes usar **Añadir a pantalla de inicio** (o **Instalar app**, si aparece) para abrirlo como aplicación.
 
-El sitio contiene solo la interfaz; no incluye el inventario XML. Carga el archivo por separado en cada dispositivo: los datos y pedidos quedan guardados en ese navegador y no se sincronizan entre dispositivos. El enlace publicado es público aunque el repositorio de código permanezca privado.
+El enlace publicado y el XML central son públicos. Los pedidos y los inventarios importados localmente permanecen en el dispositivo y no se sincronizan entre dispositivos.
 
 ```sh
 npm install
