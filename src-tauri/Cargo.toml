@@ -1,0 +1,12 @@
+[package]
+name = "coisa-hogar-portal"
+version = "0.1.0"
+description = "Portal local de inventario y pedidos de COISA HOGAR"
+authors = ["JORGE ALBERTO PAREJO LANDINEZ"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#10233f">
+    <meta name="description" content="Portal local para preparar pedidos y consultar el inventario de COISA HOGAR.">
+    <link rel="icon" href="./icon.svg" type="image/svg+xml">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <title>Pedidos · COISA HOGAR</title>
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="COISA HOGAR, inicio">
+          <span class="brand-mark" aria-hidden="true">CH</span>
+          <span class="brand-copy">
+            <strong>COISA HOGAR</strong>
+            <small>Inventario y pedidos</small>
+          </span>
+        </a>
+        <div class="top-actions">
+          <span id="connectionStatus" class="connection-status"><span class="status-dot"></span><span>En este dispositivo</span></span>
+          <button id="installButton" class="button button-quiet install-button" type="button" hidden>Instalar app</button>
+          <button id="loadTopButton" class="button button-quiet top-load-button" type="button">Actualizar inventario</button>
+        </div>
+      </header>
+
+      <main>
+        <div id="fileProtocolNotice" class="message file-protocol-notice" role="alert" hidden>
+          Estás abriendo el archivo fuente <strong>index.html</strong>, que no puede cargar el módulo del portal de forma directa.
+          <a href="./portal.html">Abre Portal de pedidos (portal.html)</a> para importar el inventario.
+        </div>
+        <section class="page-heading" aria-labelledby="pageTitle">
+          <div>
+            <p class="eyebrow">GESTIÓN COMERCIAL</p>
+            <h1 id="pageTitle">Nota de pedido</h1>
+            <p class="page-subtitle">Busca lo que necesitas y prepara el pedido paso a paso.</p>
+          </div>
+          <div id="inventoryBadge" class="inventory-badge" role="status" aria-live="polite">
+            <span class="status-dot"></span><span>Inventario pendiente</span>
+          </div>
+        </section>
+
+        <div id="importMessage" class="message" role="status" aria-live="polite" hidden></div>
+
+        <nav class="mobile-tabs" aria-label="Secciones del pedido">
+          <button class="mobile-tab is-active" type="button" data-mobile-view="catalog" aria-pressed="true">
+            <span aria-hidden="true">⌕</span> Catálogo
+          </button>
+          <button class="mobile-tab" type="button" data-mobile-view="order" aria-pressed="false">
+            <span aria-hidden="true">▤</span> Mi pedido <span id="mobileLineCount" class="tab-count">0</span>
+          </button>
+        </nav>
+
+        <div class="workspace">
+          <section id="catalogPanel" class="panel catalog-panel" aria-labelledby="catalogTitle">
+            <div class="panel-heading">
+              <div>
+                <h2 id="catalogTitle">Productos</h2>
+                <p>Busca por nombre, código o marca.</p>
+              </div>
+              <button id="loadButton" class="button button-secondary panel-load-button" type="button">Cargar XML</button>
+              <input id="xmlFile" class="visually-hidden" type="file" accept=".xml,.XML,text/xml,application/xml,application/octet-stream" aria-label="Seleccionar archivo de inventario XML">
+            </div>
+
+            <button id="dropZone" class="import-card" type="button">
+              <span class="import-icon" aria-hidden="true">↑</span>
+              <span class="import-copy">
+                <strong id="fileStatus">Carga el archivo XML actualizado de Stellar</strong>
+                <small id="fileDetail">Tu inventario se queda guardado en este dispositivo.</small>
+              </span>
+              <span class="import-action">Elegir archivo</span>
+            </button>
+
+            <div class="search-fields">
+              <label class="search-box">
+                <span class="field-label">Buscar producto</span>
+                <span class="search-control-wrap">
+                  <span class="search-icon" aria-hidden="true">⌕</span>
+                  <input id="searchInput" type="search" placeholder="Ej. código, termo, marca…" autocomplete="off" disabled>
+                  <button id="clearSearch" class="clear-search" type="button" aria-label="Limpiar búsqueda" hidden>×</button>
+                </span>
+              </label>
+              <label class="department-field">
+                <span class="field-label">Departamento</span>
+                <select id="departmentFilter" disabled>
+                  <option value="">Todos</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="result-meta">
+              <span id="resultCount">Primero carga el inventario</span>
+              <span id="resultLimit"></span>
+            </div>
+            <div id="productList" class="product-list" aria-live="polite">
+              <div class="empty-state">
+                <span class="empty-icon" aria-hidden="true">▦</span>
+                <strong>Tu catálogo aparecerá aquí</strong>
+                <span>Selecciona el XML que exportaste desde Stellar.</span>
+              </div>
+            </div>
+            <button id="showMoreButton" class="button button-secondary show-more" type="button" hidden>Ver más productos</button>
+
+            <div class="add-box">
+              <div class="add-selection">
+                <span class="field-label">Producto seleccionado</span>
+                <strong id="selectedProduct">Toca un producto del catálogo.</strong>
+              </div>
+              <div class="add-controls">
+                <label>
+                  <span class="field-label">Cantidad</span>
+                  <input id="quantityInput" type="number" min="0.01" step="any" value="1" inputmode="decimal" disabled>
+                </label>
+                <label>
+                  <span class="field-label">Unidad</span>
+                  <select id="unitInput" disabled>
+                    <option>CJ</option><option>UND</option><option>MT</option><option>PAQ</option><option>JGO</option>
+                  </select>
+                </label>
+                <button id="addButton" class="button button-primary add-button" type="button" disabled>＋ Agregar al pedido</button>
+              </div>
+            </div>
+          </section>
+
+          <section id="orderPanel" class="panel order-panel" aria-labelledby="orderTitle">
+            <div class="panel-heading order-heading">
+              <div>
+                <h2 id="orderTitle">Mi pedido</h2>
+                <p id="orderHint">Los cambios se guardan automáticamente.</p>
+              </div>
+              <span id="rowCounter" class="request-count">0 productos</span>
+            </div>
+
+            <div class="order-fields">
+              <label>
+                <span class="field-label">Encargado responsable</span>
+                <input id="managerInput" type="text" placeholder="Nombre y apellido" maxlength="80" autocomplete="name">
+              </label>
+              <label>
+                <span class="field-label">Teléfono</span>
+                <input id="phoneInput" type="tel" placeholder="Teléfono de contacto" maxlength="35" autocomplete="tel">
+              </label>
+              <label>
+                <span class="field-label">N.º de pedido</span>
+                <input id="orderInput" type="text" value="0000001" inputmode="numeric" maxlength="20">
+              </label>
+            </div>
+
+            <div id="reconcileNotice" class="reconcile-notice" role="status" hidden></div>
+            <div id="requestContent" class="request-content">
+              <div class="request-empty">
+                <span class="empty-icon" aria-hidden="true">▤</span>
+                <strong>Tu pedido está vacío</strong>
+                <span>Agrega productos desde el catálogo.</span>
+              </div>
+            </div>
+
+            <div class="request-footer">
+              <div class="totals">
+                <div><span>Productos</span><strong id="lineTotal">0</strong></div>
+                <div><span>Bultos (CJ)</span><strong id="caseTotal">0</strong></div>
+              </div>
+              <button id="exportButton" class="button button-primary export-button" type="button" disabled>⇩ Descargar Excel</button>
+            </div>
+            <button id="clearOrderButton" class="clear-order" type="button" disabled>Vaciar pedido</button>
+          </section>
+        </div>
+
+        <footer class="app-footer">
+          <p>La información del inventario y los pedidos se guarda solo en este dispositivo.</p>
+          <p>Derechos de la aplicación: <strong>JORGE ALBERTO PAREJO LANDINEZ</strong>. Las marcas y los datos comerciales pertenecen a sus respectivos titulares.</p>
+        </footer>
+      </main>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script>
+      if (location.protocol === "file:" && !location.pathname.toLowerCase().endsWith("/portal.html")) {
+        document.getElementById("fileProtocolNotice").hidden = false;
+      }
+    </script>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

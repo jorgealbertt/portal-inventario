@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "Pedidos · COISA HOGAR",
+  "short_name": "Pedidos",
+  "description": "Catálogo y notas de pedido locales de COISA HOGAR.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#10233f",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
