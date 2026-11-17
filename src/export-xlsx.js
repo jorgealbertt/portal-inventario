@@ -1,25 +1,19 @@
+import orderTemplateBase64 from "./order-template.js";
+
 const encoder = new TextEncoder();
-const spreadsheetNamespace = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const decoder = new TextDecoder();
+const templateDataRows = 79;
 
 function xmlEscape(value) {
-  return String(value ?? "").replace(/[<>&"']/g, (character) => ({
-    "<": "&lt;",
-    ">": "&gt;",
-    "&": "&amp;",
-    '"': "&quot;",
-    "'": "&apos;"
-  })[character]);
-}
-
-function columnName(index) {
-  let value = index + 1;
-  let name = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    name = String.fromCharCode(65 + remainder) + name;
-    value = Math.floor((value - 1) / 26);
-  }
-  return name;
+  return String(value ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
+    .replace(/[<>&"']/g, (character) => ({
+      "<": "&lt;",
+      ">": "&gt;",
+      "&": "&amp;",
+      '"': "&quot;",
+      "'": "&apos;"
+    })[character]);
 }
 
 function inlineCell(reference, value, style = 0) {
@@ -28,55 +22,173 @@ function inlineCell(reference, value, style = 0) {
   return `<c r="${reference}"${styleAttribute} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(text)}</t></is></c>`;
 }
 
-function numberCell(reference, value, style = 0) {
+function numberCell(reference, value) {
   const amount = Number(value);
-  if (!Number.isFinite(amount)) return inlineCell(reference, "", style);
-  const styleAttribute = style ? ` s="${style}"` : "";
-  return `<c r="${reference}"${styleAttribute}><v>${amount}</v></c>`;
+  return Number.isFinite(amount) ? `<c r="${reference}"><v>${amount}</v></c>` : `<c r="${reference}"/>`;
 }
 
-function rowXml(rowNumber, cells, height) {
-  const heightAttribute = height ? ` ht="${height}" customHeight="1"` : "";
-  return `<row r="${rowNumber}"${heightAttribute}>${cells.join("")}</row>`;
+function rowXml(rowNumber, cells) {
+  return `<row r="${rowNumber}">${cells.join("")}</row>`;
 }
 
-function worksheetXml(rows, widths, freezeRows = 0) {
-  const columns = widths.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join("");
-  const pane = freezeRows
-    ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${freezeRows}" topLeftCell="A${freezeRows + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
-    : "";
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${spreadsheetNamespace}"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>${pane}<cols>${columns}</cols><sheetData>${rows.join("")}</sheetData><pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/></worksheet>`;
+function decodeTemplate() {
+  const binary = atob(orderTemplateBase64);
+  const archive = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  const view = new DataView(archive.buffer, archive.byteOffset, archive.byteLength);
+  const files = new Map();
+  let offset = 0;
+
+  while (offset + 30 <= archive.length && view.getUint32(offset, true) === 0x04034b50) {
+    const flags = view.getUint16(offset + 6, true);
+    const method = view.getUint16(offset + 8, true);
+    const size = view.getUint32(offset + 18, true);
+    const nameLength = view.getUint16(offset + 26, true);
+    const extraLength = view.getUint16(offset + 28, true);
+    if (method !== 0 || flags & 0x0008) {
+      throw new Error("La plantilla del pedido tiene una compresión no compatible.");
+    }
+
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    const dataEnd = dataStart + size;
+    if (dataEnd > archive.length) throw new Error("La plantilla del pedido está incompleta.");
+    const name = decoder.decode(archive.subarray(nameStart, nameStart + nameLength));
+    files.set(name, archive.slice(dataStart, dataEnd));
+    offset = dataEnd;
+  }
+
+  if (!files.has("xl/worksheets/sheet1.xml") || !files.has("xl/worksheets/sheet2.xml")) {
+    throw new Error("No se encontraron las hojas de la plantilla del pedido.");
+  }
+  return files;
 }
 
-function orderSheet(draft) {
-  const rows = [];
-  rows.push(rowXml(1, [inlineCell("A1", "COISA HOGAR, C.A.", 1), inlineCell("B1", ""), inlineCell("C1", ""), inlineCell("D1", ""), inlineCell("E1", `NOTA DE PEDIDO ${draft.orderNumber}`, 1)], 28));
-  rows.push(rowXml(2, [inlineCell("A2", "Encargado responsable", 2), inlineCell("B2", draft.manager), inlineCell("C2", "Teléfono", 2), inlineCell("D2", draft.phone), inlineCell("E2", `Fecha: ${new Intl.DateTimeFormat("es-VE").format(new Date())}`)], 22));
-  rows.push(rowXml(3, [inlineCell("A3", "RIF J-50086782-4"), inlineCell("B3", ""), inlineCell("C3", ""), inlineCell("D3", ""), inlineCell("E3", "")], 20));
-  rows.push(rowXml(4, [
-    inlineCell("A4", "CÓDIGO", 2), inlineCell("B4", "ITEM", 2), inlineCell("C4", "DESCRIPCIÓN", 2),
-    inlineCell("D4", "CANTIDAD", 2), inlineCell("E4", "UNIDAD", 2)
-  ], 24));
-  draft.lines.forEach((line, index) => {
-    const row = index + 5;
-    rows.push(rowXml(row, [
-      inlineCell(`A${row}`, line.product.code),
-      inlineCell(`B${row}`, line.product.item),
-      inlineCell(`C${row}`, line.product.fullDescription),
-      numberCell(`D${row}`, line.quantity),
-      inlineCell(`E${row}`, line.unit)
-    ]));
+function xmlFile(files, name) {
+  const value = files.get(name);
+  if (!value) throw new Error(`No se encontró el archivo ${name} en la plantilla del pedido.`);
+  return decoder.decode(value);
+}
+
+function storeXml(files, name, xml) {
+  files.set(name, encoder.encode(xml));
+}
+
+function replaceCell(xml, reference, value) {
+  const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`<c\\b(?=[^>]*\\br="${escapedReference}")[^>]*(?:\\/>|>[\\s\\S]*?<\\/c>)`);
+  const match = xml.match(pattern);
+  if (!match) throw new Error(`No se encontró la celda ${reference} en la plantilla del pedido.`);
+
+  const openingTag = match[0].match(/^<c\b[^>]*>/)?.[0];
+  if (!openingTag) throw new Error(`La celda ${reference} de la plantilla no es válida.`);
+  const attributes = openingTag.slice(2, -1).replace(/\/$/, "").replace(/\s+t="[^"]*"/, "");
+  const replacement = `<c${attributes} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
+  return xml.replace(match[0], () => replacement);
+}
+
+function sheetDataRows(xml) {
+  const match = /<sheetData\b[^>]*>([\s\S]*?)<\/sheetData>/.exec(xml);
+  if (!match) throw new Error("No se encontró la tabla de datos de una hoja.");
+  const rows = new Map();
+  for (const row of match[1].matchAll(/<row\b[^>]*\br="(\d+)"[^>]*>[\s\S]*?<\/row>/g)) {
+    rows.set(Number(row[1]), row[0]);
+  }
+  return rows;
+}
+
+function replaceSheetData(xml, rows) {
+  return xml.replace(/<sheetData\b[^>]*>[\s\S]*?<\/sheetData>/, (whole) => {
+    const openingTag = whole.match(/^<sheetData\b[^>]*>/)?.[0];
+    if (!openingTag) throw new Error("La tabla de datos de una hoja no es válida.");
+    return `${openingTag}${rows.join("")}</sheetData>`;
   });
-  const lastOrderRow = Math.max(4, draft.lines.length + 4);
-  const xml = worksheetXml(rows, [18, 24, 58, 14, 12]);
-  return xml
-    .replace("</sheetData>", `</sheetData><autoFilter ref="A4:E${lastOrderRow}"/><mergeCells count="1"><mergeCell ref="A1:D1"/></mergeCells>`)
-    .replace("</worksheet>", `<pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0" paperSize="9"/></worksheet>`);
 }
 
-function inventorySheet(products) {
-  const headers = ["CODIGO", "ITEM", "DESCRIPCION_COMPLETA", "DESCRIPCION_CORTA", "DEPARTAMENTO", "MARCA", "COSTO_ACTUAL", "PRECIO_1"];
-  const rows = [rowXml(1, headers.map((header, index) => inlineCell(`${columnName(index)}1`, header, 2)), 28)];
+function cloneRow(rowXmlValue, previousNumber, nextNumber) {
+  const previous = String(previousNumber);
+  const next = String(nextNumber);
+  return rowXmlValue
+    .replace(/(<row\b[^>]*\br=")\d+(")/, `$1${next}$2`)
+    .replace(new RegExp(`(\\br="[A-Z]+)${previous}(")`, "g"), `$1${next}$2`);
+}
+
+function updateDimension(xml, reference) {
+  return xml.replace(/<dimension\b[^>]*\bref="[^"]+"[^>]*\/>/, `<dimension ref="${reference}"/>`);
+}
+
+function updateAutoFilter(xml, reference) {
+  return xml.replace(/(<autoFilter\b[^>]*\bref=")[^"]+(")/, `$1${reference}$2`);
+}
+
+function orderMerges(xml, lastRow) {
+  return xml.replace(/<mergeCells\b([^>]*)>([\s\S]*?)<\/mergeCells>/, (whole, attributes, body) => {
+    const staticRanges = [...body.matchAll(/<mergeCell\b[^>]*\bref="([^"]+)"/g)]
+      .map((match) => match[1])
+      .filter((range) => {
+        const rows = [...range.matchAll(/\d+/g)].map((match) => Number(match[0]));
+        return rows.length && Math.max(...rows) <= 6;
+      });
+    const rowRanges = [];
+    for (let row = 7; row <= lastRow; row += 1) {
+      rowRanges.push(`B${row}:C${row}`, `D${row}:F${row}`, `G${row}:H${row}`);
+    }
+    const ranges = [...staticRanges, ...rowRanges];
+    const nextAttributes = attributes.replace(/\bcount="\d+"/, `count="${ranges.length}"`);
+    const mergeCells = ranges.map((range) => `<mergeCell ref="${range}"/>`).join("");
+    return `<mergeCells${nextAttributes}>${mergeCells}</mergeCells>`;
+  });
+}
+
+function orderDate() {
+  const date = new Date();
+  return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+}
+
+function orderSheet(templateXml, draft) {
+  const templateRows = sheetDataRows(templateXml);
+  const lastRow = draft.lines.length + 6;
+  const rows = [];
+  for (let row = 1; row <= 6; row += 1) {
+    const templateRow = templateRows.get(row);
+    if (!templateRow) throw new Error(`Falta la fila ${row} en la plantilla del pedido.`);
+    rows.push(templateRow);
+  }
+
+  draft.lines.forEach((line, index) => {
+    const rowNumber = index + 7;
+    const sourceRowNumber = Math.min(rowNumber, templateDataRows + 6);
+    const sourceRow = templateRows.get(sourceRowNumber);
+    if (!sourceRow) throw new Error(`Falta el formato de la fila ${sourceRowNumber} en la plantilla del pedido.`);
+    let row = cloneRow(sourceRow, sourceRowNumber, rowNumber);
+    row = replaceCell(row, `A${rowNumber}`, line.product.code);
+    row = replaceCell(row, `B${rowNumber}`, line.product.item);
+    row = replaceCell(row, `D${rowNumber}`, line.product.shortDescription);
+    row = replaceCell(row, `G${rowNumber}`, `${line.quantity} ${line.unit}`);
+    rows.push(row);
+  });
+
+  let xml = replaceSheetData(templateXml, rows);
+  const headers = {
+    E1: `NOTA DE PEDIDO ${draft.orderNumber}`,
+    F2: `Fecha ${orderDate()}`,
+    A3: draft.manager ? `ENCARGADO RESP.: ${draft.manager}` : "ENCARGADO RESP.",
+    A4: draft.phone ? `                                            Teléfono: ${draft.phone}` : "                                            Teléfono: "
+  };
+  for (const [reference, value] of Object.entries(headers)) {
+    xml = replaceCell(xml, reference, value);
+  }
+  xml = updateDimension(xml, `A1:L${lastRow}`);
+  xml = updateAutoFilter(xml, `A6:H${lastRow}`);
+  xml = orderMerges(xml, lastRow);
+  return xml;
+}
+
+function inventorySheet(templateXml, products) {
+  const templateRows = sheetDataRows(templateXml);
+  const header = templateRows.get(1);
+  if (!header) throw new Error("Falta la fila de encabezados del inventario en la plantilla.");
+  const rows = [header];
+
   products.forEach((product, index) => {
     const row = index + 2;
     rows.push(rowXml(row, [
@@ -85,13 +197,16 @@ function inventorySheet(products) {
       inlineCell(`C${row}`, product.fullDescription),
       inlineCell(`D${row}`, product.shortDescription),
       inlineCell(`E${row}`, product.department),
-      inlineCell(`F${row}`, product.brand),
+      ...(product.brand ? [inlineCell(`F${row}`, product.brand)] : []),
       numberCell(`G${row}`, product.cost),
       numberCell(`H${row}`, product.price)
     ]));
   });
-  const xml = worksheetXml(rows, [18, 22, 52, 48, 17, 26, 18, 18], 1);
-  return xml.replace("</sheetData>", `</sheetData><autoFilter ref="A1:H${products.length + 1}"/>`);
+
+  let xml = replaceSheetData(templateXml, rows);
+  const lastRow = products.length + 1;
+  xml = updateDimension(xml, `A1:H${lastRow}`);
+  return updateAutoFilter(xml, `A1:H${lastRow}`);
 }
 
 const crcTable = (() => {
@@ -181,16 +296,26 @@ function zipStore(files) {
 
 export function createWorkbookBytes(inventory, draft) {
   if (!inventory.length || !draft.lines.length) throw new Error("Carga el inventario y agrega productos antes de exportar.");
-  const files = [
-    ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
-    ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
-    ["xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Nota de pedido" sheetId="1" r:id="rId1"/><sheet name="Base_Inventario" sheetId="2" r:id="rId2"/></sheets><calcPr calcMode="auto"/></workbook>`],
-    ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
-    ["xl/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${spreadsheetNamespace}"><fonts count="2"><font><sz val="10"/><name val="Arial"/></font><font><b/><sz val="12"/><color rgb="FFFFFFFF"/><name val="Arial"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF2F5597"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment horizontal="left" vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0"><alignment horizontal="center" vertical="center" wrapText="1"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
-    ["xl/worksheets/sheet1.xml", orderSheet(draft)],
-    ["xl/worksheets/sheet2.xml", inventorySheet(inventory)]
-  ];
-  return zipStore(files);
+
+  const files = decodeTemplate();
+  const orderXml = orderSheet(xmlFile(files, "xl/worksheets/sheet1.xml"), draft);
+  const inventoryXml = inventorySheet(xmlFile(files, "xl/worksheets/sheet2.xml"), inventory);
+  let workbookXml = xmlFile(files, "xl/workbook.xml");
+  workbookXml = workbookXml
+    .replace("'Table 1'!$A$6:$H$6", `'Table 1'!$A$6:$H$${draft.lines.length + 6}`)
+    .replace("Base_Inventario!$A$1:$H$1", `Base_Inventario!$A$1:$H$${inventory.length + 1}`);
+
+  let coreProperties = xmlFile(files, "docProps/core.xml");
+  coreProperties = coreProperties.replace(
+    /(<dcterms:modified[^>]*>)[\s\S]*?(<\/dcterms:modified>)/,
+    `$1${new Date().toISOString()}$2`
+  );
+  storeXml(files, "xl/worksheets/sheet1.xml", orderXml);
+  storeXml(files, "xl/worksheets/sheet2.xml", inventoryXml);
+  storeXml(files, "xl/workbook.xml", workbookXml);
+  storeXml(files, "docProps/core.xml", coreProperties);
+
+  return zipStore([...files.entries()]);
 }
 
 export function createWorkbookBlob(inventory, draft) {

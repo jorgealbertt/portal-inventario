@@ -8,7 +8,7 @@ Aplicación local, adaptable a teléfono y computadora, para consultar el invent
 2. Abre el portal y selecciona **Actualizar inventario** o **Cargar XML**. También puedes arrastrar el archivo al recuadro de importación en una computadora.
 3. La aplicación valida el archivo antes de reemplazar los datos. Si ya hay un pedido abierto, los renglones se conservan: los códigos que siguen existiendo reciben la descripción nueva y los que faltan quedan señalados. No se puede descargar el pedido hasta quitar esos renglones o agregarlos nuevamente desde el catálogo.
 4. Busca por código, descripción, marca o departamento; selecciona un producto, indica cantidad y unidad, y agrégalo al pedido.
-5. Descarga el archivo `.xlsx` cuando termines. Incluye la nota y una hoja `Base_Inventario` con los datos del XML, incluidos costos y precios.
+5. Descarga el archivo `.xlsx` cuando termines. La primera hoja conserva el formato del ejemplo de Valencia —logo, encabezado, ubicación, tabla y cantidades con unidad— y la segunda hoja `Base_Inventario` incluye los datos del XML, incluidos costos y precios.
 
 Los productos, el último inventario válido y el borrador se guardan en IndexedDB en el perfil local del navegador o de la aplicación de escritorio. Los cambios del pedido se guardan automáticamente. No se suben archivos ni hay sincronización entre dispositivos; cada teléfono o computadora debe importar su propio XML. Mantén una copia segura del XML original. Al compartir un Excel, ten presente que también contiene la hoja completa del inventario y los costos.
 
