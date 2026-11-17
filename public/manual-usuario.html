@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Guía para instalar y usar Portal de pedidos en Android, iPhone, iPad y computadora.">
+  <title>Guía de uso · Portal de pedidos COISA HOGAR</title>
+  <style>
+    :root { color-scheme: light; --navy:#10233f; --blue:#1769aa; --ink:#1d2939; --muted:#526174; --pale:#eef5fb; --line:#d7e0e9; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#edf1f5; color:var(--ink); font:16px/1.55 Arial,Helvetica,sans-serif; }
+    .toolbar { position:sticky; top:0; z-index:2; padding:12px; text-align:center; background:var(--navy); }
+    .toolbar button { border:0; border-radius:8px; padding:11px 18px; background:#fff; color:var(--navy); font-size:15px; font-weight:700; cursor:pointer; }
+    main { max-width:850px; margin:26px auto; padding:0 18px; }
+    article { margin:0 0 22px; padding:38px 46px; background:white; border:1px solid var(--line); border-radius:14px; box-shadow:0 6px 24px #10233f12; }
+    .cover { min-height:900px; display:flex; flex-direction:column; justify-content:space-between; color:white; background:var(--navy); }
+    .brand { display:inline-block; padding:8px 12px; border:1px solid #ffffff70; border-radius:99px; font-size:13px; letter-spacing:.08em; }
+    h1 { margin:64px 0 12px; font-size:42px; line-height:1.08; }
+    h2 { margin:0 0 16px; padding-bottom:9px; color:var(--navy); border-bottom:2px solid var(--line); font-size:26px; }
+    h3 { margin:22px 0 8px; color:var(--blue); font-size:18px; }
+    p { margin:9px 0; }
+    ol,ul { padding-left:23px; }
+    li { margin:7px 0; }
+    .subtitle { max-width:570px; color:#e0eaf4; font-size:21px; }
+    .link { overflow-wrap:anywhere; color:var(--blue); font-weight:700; }
+    .cover .link { color:white; }
+    .callout { margin:16px 0; padding:13px 15px; border-left:4px solid var(--blue); border-radius:4px; background:var(--pale); }
+    .warning { border-left-color:#bd6b16; background:#fff6e9; }
+    .small { color:var(--muted); font-size:13px; }
+    .footer { margin-top:28px; padding-top:12px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+    .step-label { display:inline-block; min-width:28px; color:var(--blue); font-weight:700; }
+    @page { size:A4; margin:15mm; }
+    @media print {
+      body { background:white; font-size:11pt; }
+      .toolbar { display:none; }
+      main { max-width:none; margin:0; padding:0; }
+      article { min-height:0; margin:0; padding:10mm 8mm; border:0; border-radius:0; box-shadow:none; break-after:page; }
+      article:last-child { break-after:auto; }
+      .cover { min-height:267mm; padding:18mm 14mm; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+      h2,h3 { break-after:avoid; }
+      a { color:inherit; text-decoration:none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar"><button type="button" onclick="window.print()">Imprimir / Guardar como PDF</button></div>
+  <main>
+    <article class="cover">
+      <div><span class="brand">COISA HOGAR · PEDIDOS E INVENTARIO</span>
+        <h1>Guía rápida<br>de uso</h1>
+        <p class="subtitle">Cómo abrir, instalar y preparar pedidos desde un teléfono Android, iPhone o iPad, y una computadora.</p>
+      </div>
+      <div>
+        <h3 style="color:#b9daf7">Portal de pedidos</h3>
+        <p><a class="link" href="https://jorgealbertt.github.io/portal-inventario/">https://jorgealbertt.github.io/portal-inventario/</a></p>
+        <p class="small" style="color:#d2deeb">El responsable del inventario mantiene y publica el archivo INVENTARIO.xml. Esta guía explica cómo cargarlo y usar el portal.</p>
+      </div>
+    </article>
+
+    <article>
+      <h2>1. Antes de empezar</h2>
+      <p>Abre el enlace del portal con conexión a internet la primera vez. Elige cómo cargar el inventario:</p>
+      <ul>
+        <li><strong>Actualizar desde repositorio</strong> (en teléfono puede aparecer como <strong>Repositorio</strong>): carga la versión central más reciente.</li>
+        <li><strong>Archivo XML</strong> (en teléfono puede aparecer como <strong>Archivo</strong>): permite seleccionar un archivo de inventario que tengas guardado en el dispositivo.</li>
+      </ul>
+      <p>Espera a que termine la validación y aparezca el catálogo. Si el dispositivo ya tenía un inventario y se va a reemplazar, confirma solo si deseas usar la nueva versión. Un XML inválido no reemplaza el inventario que ya estaba guardado.</p>
+      <div class="callout"><strong>Para mantenerlo simple:</strong> quien administra el inventario se encarga de actualizar y publicar <code>INVENTARIO.xml</code>. Quienes hacen pedidos solo abren el portal y pulsan <strong>Actualizar desde repositorio</strong> cuando quieran traer la versión nueva.</div>
+      <h3>Android</h3>
+      <ol>
+        <li>Abre el enlace en Chrome o en otro navegador compatible.</li>
+        <li>Para tener un acceso como una app, toca <strong>Instalar app</strong> si aparece. Si no, abre el menú <strong>⋮</strong> y elige <strong>Instalar app</strong> o <strong>Agregar a pantalla principal</strong>; confirma.</li>
+        <li>La primera vez, carga el inventario central desde el botón <strong>Repositorio</strong>.</li>
+      </ol>
+      <h3>iPhone o iPad</h3>
+      <ol>
+        <li>Abre el enlace en <strong>Safari</strong>.</li>
+        <li>Toca <strong>Instalar en iPhone/iPad</strong> en el portal o el botón <strong>Compartir</strong> (cuadrado con flecha hacia arriba).</li>
+        <li>Elige <strong>Agregar a pantalla de inicio</strong> y luego <strong>Agregar</strong>.</li>
+        <li>Abre el icono del portal y carga el inventario con <strong>Repositorio</strong>.</li>
+      </ol>
+      <p class="small">En iPhone/iPad se agrega el portal desde Safari; no se instala un archivo APK o IPA.</p>
+    </article>
+
+    <article>
+      <h2>2. Usarlo en una computadora</h2>
+      <ol>
+        <li>Abre el enlace del portal en un navegador actualizado, como Chrome, Edge, Firefox o Safari.</li>
+        <li>Pulsa <strong>Actualizar desde repositorio</strong> para cargar el inventario central. También puedes pulsar <strong>Archivo XML</strong> y seleccionar un XML guardado en la computadora.</li>
+        <li>Opcional: si el navegador ofrece la opción de instalar el sitio o crear un acceso directo, puedes usarla. También puedes guardar el enlace en Favoritos.</li>
+      </ol>
+      <p>En una computadora, también puedes arrastrar un archivo XML al recuadro de carga del inventario. No abras el archivo fuente <code>index.html</code> directamente; usa el enlace web del portal.</p>
+      <div class="callout">El portal web funciona en teléfonos y computadoras. No hace falta instalar un programa de escritorio para preparar pedidos.</div>
+      <h2 style="margin-top:30px">3. Buscar productos y armar un pedido</h2>
+      <ol>
+        <li>Busca por <strong>código, descripción, marca o departamento</strong>. En el teléfono, usa las pestañas <strong>Catálogo</strong> y <strong>Mi pedido</strong> para cambiar de vista.</li>
+        <li>Selecciona un producto, indica la cantidad y la unidad (por ejemplo, CJ, UND, MT, PAQ o JGO) y pulsa <strong>Agregar al pedido</strong>.</li>
+        <li>En <strong>Mi pedido</strong>, revisa los renglones. Puedes cambiar cantidades o unidades y quitar productos.</li>
+        <li>Completa el encargado responsable, el teléfono y el número de pedido.</li>
+        <li>Cuando termines, pulsa <strong>Descargar Excel</strong> y guarda o comparte el archivo <code>.xlsx</code>.</li>
+      </ol>
+      <p>Si necesitas continuar un pedido desde Excel, activa <strong>Reposición desde Excel</strong> y selecciona su archivo <code>.xlsx</code>. Sus productos se agregan al pedido actual. Revisa los artículos marcados para corregir antes de descargar.</p>
+    </article>
+
+    <article>
+      <h2>4. Inventario actualizado y datos guardados</h2>
+      <ul>
+        <li>Después de que se publique un inventario nuevo, cada dispositivo debe pulsar <strong>Actualizar desde repositorio</strong> y confirmar el reemplazo si se solicita. Publicar el archivo no actualiza automáticamente los dispositivos que ya tenían inventario guardado.</li>
+        <li>El inventario válido y el borrador del pedido se guardan automáticamente en el perfil local del navegador o de la app de ese dispositivo.</li>
+        <li>Los pedidos y los inventarios importados localmente <strong>no se sincronizan</strong> entre teléfonos y computadoras. Descarga el Excel para conservar o compartir un pedido.</li>
+        <li>La primera visita requiere conexión para cargar la aplicación y el inventario. Luego, la interfaz y los datos guardados pueden estar disponibles sin conexión, pero para obtener el XML central nuevo se necesita conexión.</li>
+      </ul>
+      <div class="callout warning"><strong>Privacidad:</strong> el enlace público y el XML central pueden ser vistos por cualquier visitante. El Excel descargado incluye una hoja con datos del inventario, que puede contener costos y precios. Compártelo solo con las personas autorizadas y no incluyas en el XML información confidencial.</div>
+      <h2 style="margin-top:30px">5. Si algo no funciona</h2>
+      <ul>
+        <li><strong>No aparecen productos:</strong> comprueba que haya conexión y pulsa <strong>Repositorio</strong> o carga el XML correcto.</li>
+        <li><strong>No se actualizó el catálogo:</strong> vuelve a pulsar <strong>Actualizar desde repositorio</strong> y confirma el reemplazo del inventario local.</li>
+        <li><strong>El XML no carga:</strong> pide al responsable que revise el archivo exportado de Stellar. El portal acepta archivos de hasta 20 MB y valida el contenido antes de importarlo.</li>
+        <li><strong>Un producto del pedido no coincide:</strong> revisa el artículo marcado con el inventario actual antes de descargar el Excel.</li>
+        <li><strong>No encuentras el Excel descargado:</strong> revisa la carpeta <strong>Descargas</strong> del teléfono o la computadora.</li>
+      </ul>
+      <div class="footer">Portal de pedidos · COISA HOGAR<br>Guía de uso para Android, iPhone/iPad y computadora.</div>
+    </article>
+  </main>
+</body>
+</html>
