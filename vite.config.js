@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 
-const iosInstallMarkup = readFileSync(new URL("./src/ios-install.html", import.meta.url), "utf8");
+const installMarkup = readFileSync(new URL("./src/ios-install.html", import.meta.url), "utf8");
 
-function iosInstallPlugin() {
+function installInstructionsPlugin() {
   return {
-    name: "ios-install-option",
+    name: "cross-platform-install-instructions",
     transformIndexHtml(html) {
       const appleMeta = [
         '<meta name="apple-mobile-web-app-capable" content="yes">',
@@ -14,7 +14,7 @@ function iosInstallPlugin() {
       ].join("\n    ");
       return html
         .replace("</head>", `    ${appleMeta}\n  </head>`)
-        .replace("</body>", `    ${iosInstallMarkup}\n  </body>`);
+        .replace("</body>", `    ${installMarkup}\n  </body>`);
     }
   };
 }
@@ -22,7 +22,7 @@ function iosInstallPlugin() {
 export default defineConfig({
   base: "./",
   publicDir: "public",
-  plugins: [iosInstallPlugin()],
+  plugins: [installInstructionsPlugin()],
   build: {
     modulePreload: { polyfill: false },
     rollupOptions: { output: { format: "iife" } }
