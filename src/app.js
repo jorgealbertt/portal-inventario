@@ -2,6 +2,7 @@ import "./styles.css";
 import { formatInventorySummary, parseInventory } from "./inventory.js";
 import { parseOrderWorkbook } from "./import-xlsx.js";
 import { createWorkbookBlob, safeOrderFilename } from "./export-xlsx.js";
+import { getPersianaColors, productSearchValues } from "./persiana-colors.js";
 import {
   addLine,
   countCases,
@@ -176,7 +177,7 @@ function matchingProducts() {
   return state.inventory.filter((product) => {
     if (department && product.department !== department) return false;
     if (!query) return true;
-    return [product.code, product.item, product.fullDescription, product.brand, product.department]
+    return productSearchValues(product)
       .some((value) => normalizeSearchText(value).includes(query));
   });
 }
@@ -202,12 +203,15 @@ function renderProducts() {
     list.innerHTML = '<div class="empty-state"><span class="empty-icon" aria-hidden="true">⌕</span><strong>No encontramos productos</strong><span>Prueba con otro código, nombre o departamento.</span></div>';
     return;
   }
-  list.innerHTML = shown.map((product) => `
-    <button class="product-row${selectedProduct?.code === product.code ? " is-selected" : ""}" type="button" data-code="${escapeHtml(product.code)}" aria-pressed="${selectedProduct?.code === product.code}">
-      <span class="product-code">${escapeHtml(product.code)}</span>
-      <span class="product-description"><strong>${escapeHtml(product.fullDescription)}</strong><small>${escapeHtml(product.brand || "Sin marca")} · Dpto. ${escapeHtml(product.department || "—")}</small></span>
-      <span class="product-price">${money(product.price)}<small>Precio 1</small></span>
-    </button>`).join("");
+  list.innerHTML = shown.map((product) => {
+    const colors = getPersianaColors(product);
+    return `
+      <button class="product-row${selectedProduct?.code === product.code ? " is-selected" : ""}" type="button" data-code="${escapeHtml(product.code)}" aria-pressed="${selectedProduct?.code === product.code}">
+        <span class="product-code">${escapeHtml(product.code)}</span>
+        <span class="product-description"><strong>${escapeHtml(product.fullDescription)}</strong><small>${escapeHtml(product.brand || "Sin marca")} · Dpto. ${escapeHtml(product.department || "—")}</small>${colors.length ? `<small class="product-colors">Colores: ${colors.map(({ code, color }) => `${escapeHtml(code)}: ${escapeHtml(color)}`).join(" · ")}</small>` : ""}</span>
+        <span class="product-price">${money(product.price)}<small>Precio 1</small></span>
+      </button>`;
+  }).join("");
 }
 
 function renderOrder() {

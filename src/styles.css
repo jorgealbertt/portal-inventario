@@ -234,6 +234,7 @@ h1, h2 { font-family: ui-sans-serif, system-ui, sans-serif; }
 .product-description { min-width: 0; display: grid; gap: 4px; }
 .product-description strong { overflow: hidden; color: #202e42; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .product-description small { overflow: hidden; color: #75849a; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.product-description .product-colors { overflow: visible; color: #51647d; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
 .product-price { color: #526179; font-size: 10px; font-weight: 700; text-align: right; white-space: nowrap; }
 .product-price small { display: block; margin-top: 3px; color: #8997aa; font-size: 9px; font-weight: 500; }
 .empty-state, .request-empty { min-height: 180px; padding: 25px 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: var(--muted); text-align: center; }
@@ -432,6 +433,7 @@ html[data-theme="dark"] .product-description strong { color: #e7edf7; }
 html[data-theme="dark"] .product-description small,
 html[data-theme="dark"] .product-price,
 html[data-theme="dark"] .product-price small { color: #a2b1c5; }
+html[data-theme="dark"] .product-description .product-colors { color: #bdcbe0; }
 html[data-theme="dark"] .empty-state strong,
 html[data-theme="dark"] .request-empty strong { color: #d7e2f1; }
 html[data-theme="dark"] .empty-icon { color: #a5c9f8; background: #22364f; }
