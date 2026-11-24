@@ -7,6 +7,7 @@ import {
   emptyDraft,
   isExportable,
   normalizeDraft,
+  normalizeProductCode,
   reconcileDraft,
   removeLine,
   updateLine
@@ -16,9 +17,14 @@ const firstProduct = { code: "000001", item: "TERMO", fullDescription: "TERMO DE
 const updatedProduct = { ...firstProduct, fullDescription: "TERMO DEPORTIVO 1L", price: 14 };
 const secondProduct = { code: "000002", item: "POTES", fullDescription: "SET DE POTES", price: 8 };
 
+test("normalizes product codes for reliable matching", () => {
+  assert.equal(normalizeProductCode(" 000-001 "), "000001");
+  assert.equal(normalizeProductCode("ab  001"), "AB001");
+});
+
 test("adds and combines matching product lines without changing other units", () => {
   let draft = addLine(emptyDraft(), firstProduct, "2", "CJ");
-  draft = addLine(draft, firstProduct, 3, "CJ");
+  draft = addLine(draft, { ...firstProduct, code: " 000-001 " }, 3, "CJ");
   draft = addLine(draft, firstProduct, 1, "UND");
   assert.equal(draft.lines.length, 2);
   assert.equal(draft.lines[0].quantity, 5);
@@ -29,7 +35,7 @@ test("adds and combines matching product lines without changing other units", ()
 
 test("inventory replacement refreshes matching codes and preserves unmatched draft lines", () => {
   const draft = addLine(addLine(emptyDraft(), firstProduct, 2, "CJ"), secondProduct, 1, "UND");
-  const updated = reconcileDraft(draft, [updatedProduct]);
+  const updated = reconcileDraft(draft, [{ ...updatedProduct, code: "000-001" }]);
   assert.equal(updated.lines[0].product.fullDescription, "TERMO DEPORTIVO 1L");
   assert.equal(updated.lines[0].quantity, 2);
   assert.equal(updated.lines[0].missing, false);

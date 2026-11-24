@@ -1,5 +1,13 @@
 export const UNITS = ["CJ", "UND", "MT", "PAQ", "JGO"];
 
+export function normalizeProductCode(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[\u0000-\u0020\u00a0]/g, "")
+    .toLocaleUpperCase("es")
+    .replace(/[_.\-/\\]+/g, "");
+}
+
 export function emptyDraft() {
   return { manager: "", phone: "", orderNumber: "0000001", lines: [] };
 }
@@ -33,7 +41,12 @@ export function addLine(draft, product, quantity, unit) {
   if (!UNITS.includes(unit)) throw new Error("Selecciona una unidad de medida válida.");
 
   const lines = draft.lines.map((line) => ({ ...line }));
-  const existing = lines.find((line) => !line.missing && line.product.code === product.code && line.unit === unit);
+  const code = normalizeProductCode(product.code);
+  const existing = lines.find((line) =>
+    !line.missing &&
+    normalizeProductCode(line.product.code) === code &&
+    line.unit === unit
+  );
   if (existing) {
     existing.quantity += amount;
     existing.product = product;
@@ -61,11 +74,11 @@ export function removeLine(draft, index) {
 }
 
 export function reconcileDraft(draft, products) {
-  const byCode = new Map(products.map((product) => [product.code, product]));
+  const byCode = new Map(products.map((product) => [normalizeProductCode(product.code), product]));
   return {
     ...draft,
     lines: draft.lines.map((line) => {
-      const current = byCode.get(line.product.code);
+      const current = byCode.get(normalizeProductCode(line.product.code));
       return current
         ? { ...line, product: current, missing: false }
         : { ...line, missing: true };
