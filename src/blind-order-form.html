@@ -1,0 +1,36 @@
+<section class="blind-order" aria-labelledby="blindOrderTitle">
+  <div class="blind-order-heading">
+    <div>
+      <h3 id="blindOrderTitle">Pedido de persianas</h3>
+      <p>Selecciona el tipo, largo y color. Estas opciones se agregan aunque no aparezcan en el inventario.</p>
+    </div>
+    <span class="blind-order-badge">BKFF · PZ · BKL</span>
+  </div>
+  <form id="blindOrderForm" class="blind-order-form">
+    <label>
+      <span class="field-label">Tipo de persiana</span>
+      <select id="blindFamily" required>
+        <option value="BKFF">BKFF</option>
+        <option value="PZ">PZ</option>
+        <option value="BKL">BKL</option>
+      </select>
+    </label>
+    <label id="blindSizeField">
+      <span class="field-label">Largo</span>
+      <select id="blindSize" required>
+        <option value="180">180 cm</option>
+        <option value="240">240 cm</option>
+      </select>
+    </label>
+    <label>
+      <span class="field-label">Color y código</span>
+      <select id="blindColor" required></select>
+    </label>
+    <label>
+      <span class="field-label">Cantidad</span>
+      <input id="blindQuantity" type="number" min="0.01" step="any" value="1" inputmode="decimal" required>
+    </label>
+    <button class="button button-primary blind-add-button" type="submit">＋ Agregar persiana</button>
+  </form>
+  <p id="blindOrderHint" class="blind-order-hint" aria-live="polite">Las persianas se identificarán en el pedido por tipo, largo, color y código.</p>
+</section>
