@@ -160,19 +160,23 @@ function orderSheet(templateXml, draft) {
     const sourceRow = templateRows.get(sourceRowNumber);
     if (!sourceRow) throw new Error(`Falta el formato de la fila ${sourceRowNumber} en la plantilla del pedido.`);
     let row = cloneRow(sourceRow, sourceRowNumber, rowNumber);
+    const description = line.product.shortDescription || line.product.fullDescription || line.product.item || "";
     row = replaceCell(row, `A${rowNumber}`, line.product.code);
     row = replaceCell(row, `B${rowNumber}`, line.product.item);
-    row = replaceCell(row, `D${rowNumber}`, line.product.shortDescription);
+    row = replaceCell(row, `D${rowNumber}`, description);
     row = replaceCell(row, `G${rowNumber}`, `${line.quantity} ${line.unit}`);
     rows.push(row);
   });
 
   let xml = replaceSheetData(templateXml, rows);
+  const orderNum = String(draft.orderNumber || "0000001").trim();
+  const managerName = String(draft.manager || "").trim();
+  const phoneNumber = String(draft.phone || "").trim();
   const headers = {
-    E1: `NOTA DE PEDIDO ${draft.orderNumber}`,
+    E1: `NOTA DE PEDIDO ${orderNum}`,
     F2: `Fecha ${orderDate()}`,
-    A3: draft.manager ? `ENCARGADO RESP.: ${draft.manager}` : "ENCARGADO RESP.",
-    A4: draft.phone ? `                                            Teléfono: ${draft.phone}` : "                                            Teléfono: "
+    A3: managerName ? `ENCARGADO RESP.: ${managerName}` : "ENCARGADO RESP.",
+    A4: phoneNumber ? `                                            Teléfono: ${phoneNumber}` : "                                            Teléfono: "
   };
   for (const [reference, value] of Object.entries(headers)) {
     xml = replaceCell(xml, reference, value);
@@ -295,7 +299,9 @@ function zipStore(files) {
 }
 
 export function createWorkbookBytes(inventory, draft) {
-  if (!inventory.length || !draft.lines.length) throw new Error("Carga el inventario y agrega productos antes de exportar.");
+  if (!inventory.length || !draft.lines.length) {
+    throw new Error("Carga el inventario y agrega productos antes de exportar.");
+  }
 
   const files = decodeTemplate();
   const orderXml = orderSheet(xmlFile(files, "xl/worksheets/sheet1.xml"), draft);

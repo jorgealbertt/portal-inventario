@@ -1,4 +1,5 @@
-const ACTIVE_VALUES = new Set(["1", "true", "si", "sí"]);
+const ACTIVE_VALUES = new Set(["1", "true", "si", "sí", "activo", "activa"]);
+
 function localName(name) {
   return name.split(":").at(-1).toLowerCase();
 }
@@ -52,7 +53,7 @@ function parseTag(source) {
 }
 
 function numberValue(value) {
-  let normalized = value.trim().replace(/[\s\u00a0$]/g, "");
+  let normalized = String(value ?? "").trim().replace(/[\s\u00a0$]/g, "");
   if (!normalized) return 0;
   const comma = normalized.lastIndexOf(",");
   const dot = normalized.lastIndexOf(".");
@@ -78,12 +79,13 @@ function numberValue(value) {
 function finishRecord(record, totals) {
   totals.records += 1;
   const fields = record.fields;
-  if (!ACTIVE_VALUES.has((fields.activo || "").trim().toLowerCase())) {
+  const activeFlag = (fields.activo || "").trim().toLowerCase();
+  if (!ACTIVE_VALUES.has(activeFlag)) {
     totals.inactive += 1;
     return;
   }
-  const code = (fields.codigodelproducto || "").trim();
-  const fullDescription = (fields.descripcion || "").replace(/\s+/g, " ").trim();
+  const code = (fields.codigodelproducto || fields.codigo || "").trim();
+  const fullDescription = (fields.descripcion || fields.descripcion_completa || "").replace(/\s+/g, " ").trim();
   if (!code || !fullDescription) {
     totals.skipped += 1;
     return;
@@ -102,10 +104,10 @@ function finishRecord(record, totals) {
     item,
     fullDescription,
     shortDescription,
-    department: (fields.departamento || "").trim(),
-    brand: (fields.marca || "").trim(),
-    cost: numberValue(fields.costoactual || ""),
-    price: numberValue(fields.precio1 || "")
+    department: (fields.departamento || "").replace(/\s+/g, " ").trim(),
+    brand: (fields.marca || "").replace(/\s+/g, " ").trim(),
+    cost: numberValue(fields.costoactual || fields.costo || ""),
+    price: numberValue(fields.precio1 || fields.precio || "")
   });
 }
 

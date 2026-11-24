@@ -20,10 +20,12 @@ const $ = (id) => document.getElementById(id);
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const PAGE_SIZE = 80;
 const state = { inventory: [], inventoryInfo: null, draft: emptyDraft() };
+let isImporting = false;
 let selectedProduct = null;
 let visibleProducts = PAGE_SIZE;
 let toastTimer;
 let draftSaveTimer;
+let searchTimer;
 let persistenceQueue = Promise.resolve();
 let installPrompt = null;
 
@@ -35,6 +37,13 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#39;"
   })[character]);
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLocaleLowerCase("es");
 }
 
 function showToast(message) {
@@ -75,7 +84,10 @@ function saveDraftSoon() {
     persistenceQueue = persistenceQueue
       .then(() => writeDraft(draft))
       .catch((error) => {
-        showMessage(`No se guardaron los cambios en este dispositivo: ${error.message || "error de almacenamiento"}. Mantén esta pestaña abierta y descarga el pedido.`, "error");
+        showMessage(
+          `No se guardaron los cambios en este dispositivo: ${error.message || "error de almacenamiento"}. Mantén esta pestaña abierta y descarga el pedido.`,
+          "error"
+        );
       });
   }, 350);
 }
@@ -97,6 +109,34 @@ function inventoryDate(value) {
     : new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
+function syncControlStates() {
+  const hasInventory = state.inventory.length > 0;
+  const canExport = isExportable(state.draft, state.inventory);
+  const hasLines = state.draft.lines.length > 0;
+
+  $("loadButton").disabled = isImporting;
+  $("repoLoadButton").disabled = isImporting || location.protocol === "file:";
+  $("loadTopButton").disabled = isImporting;
+  $("dropZone").disabled = isImporting;
+  $("searchInput").disabled = isImporting || !hasInventory;
+  $("departmentFilter").disabled = isImporting || !hasInventory;
+  $("quantityInput").disabled = isImporting || !hasInventory;
+  $("unitInput").disabled = isImporting || !hasInventory;
+  $("addButton").disabled = isImporting || !hasInventory || !selectedProduct;
+  $("orderExcelToggle").disabled = isImporting || !hasInventory;
+  $("orderExcelFile").disabled = isImporting || !hasInventory;
+  $("managerInput").disabled = isImporting;
+  $("phoneInput").disabled = isImporting;
+  $("orderInput").disabled = isImporting;
+  $("exportButton").disabled = isImporting || !canExport;
+  $("clearOrderButton").disabled = isImporting || !hasLines;
+  $("catalogPanel").setAttribute("aria-busy", String(isImporting));
+  $("orderPanel").setAttribute("aria-busy", String(isImporting));
+  $("requestContent").querySelectorAll("input, select, button").forEach((control) => {
+    control.disabled = isImporting;
+  });
+}
+
 function updateInventoryBadge() {
   const badge = $("inventoryBadge");
   if (!state.inventory.length) {
@@ -106,13 +146,7 @@ function updateInventoryBadge() {
     $("fileDetail").textContent = location.protocol === "file:"
       ? "La carga desde repositorio requiere abrir el portal web."
       : "Pulsa «Repositorio» para cargarlo o elige tu propio XML.";
-    $("searchInput").disabled = true;
-    $("departmentFilter").disabled = true;
-    $("quantityInput").disabled = true;
-    $("unitInput").disabled = true;
-    $("addButton").disabled = true;
-    $("orderExcelToggle").disabled = true;
-    $("orderExcelFile").disabled = true;
+    syncControlStates();
     return;
   }
   const info = state.inventoryInfo || {};
@@ -121,13 +155,7 @@ function updateInventoryBadge() {
   badge.innerHTML = `<span class="status-dot"></span><span>${state.inventory.length.toLocaleString("es-VE")} productos · ${escapeHtml(loadedAt)}</span>`;
   $("fileStatus").textContent = info.fileName || "Inventario guardado en este dispositivo";
   $("fileDetail").textContent = `${state.inventory.length.toLocaleString("es-VE")} productos activos · Actualizado ${loadedAt}`;
-  $("searchInput").disabled = false;
-  $("departmentFilter").disabled = false;
-  $("quantityInput").disabled = false;
-  $("unitInput").disabled = false;
-  $("addButton").disabled = !selectedProduct;
-  $("orderExcelToggle").disabled = false;
-  $("orderExcelFile").disabled = false;
+  syncControlStates();
 }
 
 function renderDepartments() {
@@ -143,13 +171,13 @@ function renderDepartments() {
 }
 
 function matchingProducts() {
-  const query = $("searchInput").value.trim().toLocaleLowerCase("es");
+  const query = normalizeSearchText($("searchInput").value.trim());
   const department = $("departmentFilter").value;
   return state.inventory.filter((product) => {
     if (department && product.department !== department) return false;
     if (!query) return true;
     return [product.code, product.item, product.fullDescription, product.brand, product.department]
-      .some((value) => String(value || "").toLocaleLowerCase("es").includes(query));
+      .some((value) => normalizeSearchText(value).includes(query));
   });
 }
 
@@ -191,11 +219,9 @@ function renderOrder() {
   $("mobileLineCount").textContent = lineCount > 99 ? "99+" : String(lineCount);
   $("lineTotal").textContent = lineCount.toLocaleString("es-VE");
   $("caseTotal").textContent = new Intl.NumberFormat("es-VE", { maximumFractionDigits: 2 }).format(countCases(draft));
-  $("managerInput").value = draft.manager;
-  $("phoneInput").value = draft.phone;
-  $("orderInput").value = draft.orderNumber;
-  $("exportButton").disabled = !isExportable(draft, state.inventory);
-  $("clearOrderButton").disabled = lineCount === 0;
+  if ($("managerInput").value !== draft.manager) $("managerInput").value = draft.manager;
+  if ($("phoneInput").value !== draft.phone) $("phoneInput").value = draft.phone;
+  if ($("orderInput").value !== draft.orderNumber) $("orderInput").value = draft.orderNumber;
   $("orderHint").textContent = missing
     ? "Hay productos que debes revisar antes de descargar."
     : "Los cambios se guardan automáticamente.";
@@ -208,6 +234,7 @@ function renderOrder() {
   const content = $("requestContent");
   if (!lineCount) {
     content.innerHTML = '<div class="request-empty"><span class="empty-icon" aria-hidden="true">▤</span><strong>Tu pedido está vacío</strong><span>Agrega productos desde el catálogo o importa una reposición desde Excel.</span></div>';
+    syncControlStates();
     return;
   }
   content.innerHTML = `<div class="request-lines">${draft.lines.map((line, index) => `
@@ -222,6 +249,7 @@ function renderOrder() {
       </select>
       <button class="remove-line" type="button" aria-label="Eliminar ${escapeHtml(line.product.item)}" data-remove-line="${index}">×</button>
     </div>`).join("")}</div>`;
+  syncControlStates();
 }
 
 function renderAll() {
@@ -236,7 +264,7 @@ function setSelectedProduct(product) {
     ? `${product.code} · ${product.fullDescription}`
     : "Toca un producto del catálogo.";
   $("selectedProduct").parentElement.classList.toggle("has-selection", Boolean(product));
-  $("addButton").disabled = !product;
+  syncControlStates();
   renderProducts();
   const selectedButton = [...$("productList").querySelectorAll("[data-code]")]
     .find((button) => button.dataset.code === product?.code);
@@ -244,27 +272,13 @@ function setSelectedProduct(product) {
 }
 
 function setImportBusy(busy) {
-  $("loadButton").disabled = busy;
-  $("repoLoadButton").disabled = busy || location.protocol === "file:";
-  $("loadTopButton").disabled = busy;
-  $("dropZone").disabled = busy;
-  $("orderExcelToggle").disabled = busy || !state.inventory.length;
-  $("orderExcelFile").disabled = busy || !state.inventory.length;
-  $("catalogPanel").setAttribute("aria-busy", String(busy));
-  $("orderPanel").setAttribute("aria-busy", String(busy));
-  for (const id of ["managerInput", "phoneInput", "orderInput", "quantityInput", "unitInput", "addButton", "exportButton", "clearOrderButton"]) {
-    $(id).disabled = busy || (id === "quantityInput" || id === "unitInput" || id === "addButton") && !state.inventory.length ||
-      id === "addButton" && !selectedProduct ||
-      id === "exportButton" && !isExportable(state.draft, state.inventory) ||
-      id === "clearOrderButton" && !state.draft.lines.length;
-  }
-  $("requestContent").querySelectorAll("input, select, button").forEach((control) => {
-    control.disabled = busy;
-  });
+  isImporting = Boolean(busy);
+  syncControlStates();
 }
 
 function updateDraftField(field, value) {
   state.draft = { ...state.draft, [field]: value };
+  syncControlStates();
   saveDraftSoon();
 }
 
@@ -499,6 +513,19 @@ function setMobileView(view) {
   });
 }
 
+function openFilePicker(input, description) {
+  try {
+    if (typeof input.showPicker === "function") input.showPicker();
+    else input.click();
+  } catch (pickerError) {
+    try {
+      input.click();
+    } catch (clickError) {
+      showMessage(`No se pudo abrir el selector de archivos ${description}: ${clickError.message || pickerError.message || "intenta otra vez"}.`);
+    }
+  }
+}
+
 function configureImportControls() {
   const input = $("xmlFile");
   $("repoLoadButton").title = location.protocol === "file:"
@@ -531,19 +558,6 @@ function configureImportControls() {
   dropZone.addEventListener("drop", (event) => stageInventory(event.dataTransfer?.files?.[0]));
 }
 
-function openFilePicker(input, description) {
-  try {
-    if (typeof input.showPicker === "function") input.showPicker();
-    else input.click();
-  } catch (pickerError) {
-    try {
-      input.click();
-    } catch (clickError) {
-      showMessage(`No se pudo abrir el selector de archivos ${description}: ${clickError.message || pickerError.message || "intenta otra vez"}.`);
-    }
-  }
-}
-
 function configureOrderControls() {
   const orderExcelToggle = $("orderExcelToggle");
   const orderExcelFile = $("orderExcelFile");
@@ -571,10 +585,14 @@ function configureOrderControls() {
     if (product) setSelectedProduct(product);
   });
   $("searchInput").addEventListener("input", () => {
-    visibleProducts = PAGE_SIZE;
-    renderProducts();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      visibleProducts = PAGE_SIZE;
+      renderProducts();
+    }, 90);
   });
   $("clearSearch").addEventListener("click", () => {
+    clearTimeout(searchTimer);
     $("searchInput").value = "";
     $("searchInput").focus();
     visibleProducts = PAGE_SIZE;
@@ -693,7 +711,8 @@ function setTheme(theme, persist = true) {
   $("themeToggle").setAttribute("aria-label", isDark ? "Cambiar a tema claro" : "Cambiar a tema oscuro");
   $("themeToggle").setAttribute("aria-pressed", String(isDark));
   $("themeToggle").querySelector(".theme-label").textContent = isDark ? "Tema claro" : "Tema oscuro";
-  document.querySelector('meta[name="theme-color"]').content = isDark ? "#0b1422" : "#10233f";
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) metaTheme.content = isDark ? "#0b1422" : "#10233f";
   if (persist) {
     try {
       localStorage.setItem("coisa-hogar-theme", isDark ? "dark" : "light");
@@ -740,6 +759,7 @@ setMobileView("catalog");
 updateConnectionStatus();
 window.addEventListener("online", updateConnectionStatus);
 window.addEventListener("offline", updateConnectionStatus);
+
 async function startApp() {
   await restoreSavedState();
   if (!state.inventory.length && location.protocol !== "file:" && navigator.onLine) {
@@ -747,4 +767,5 @@ async function startApp() {
   }
   registerOfflineSupport();
 }
+
 startApp();

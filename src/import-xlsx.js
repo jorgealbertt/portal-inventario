@@ -126,29 +126,31 @@ function headerIndex(cells, aliases) {
 }
 
 const HEADER_ALIASES = {
-  code: new Set(["CODIGO", "CODIGOPRODUCTO", "CODIGOARTICULO", "CODARTICULO", "REFERENCIA"]),
+  code: new Set(["CODIGO", "CODIGOPRODUCTO", "CODIGOARTICULO", "CODARTICULO", "REFERENCIA", "COD", "SKU"]),
   item: new Set(["ITEM", "ARTICULO", "PRODUCTO", "NOMBRE"]),
-  description: new Set(["DESCRIPCION", "DETALLE"]),
-  quantity: new Set(["CANTIDAD", "CANT", "QTY", "CANTIDADUNIDAD"]),
-  unit: new Set(["UNIDAD", "UNIDADDEMEDIDA", "MEDIDA"])
+  description: new Set(["DESCRIPCION", "DETALLE", "DESCRIPCIONCORTA", "DESCRIPCIONCOMPLETA"]),
+  quantity: new Set(["CANTIDAD", "CANT", "QTY", "CANTIDADUNIDAD", "PEDIDO", "SOLICITADO"]),
+  unit: new Set(["UNIDAD", "UNIDADDEMEDIDA", "MEDIDA", "UM"])
 };
 
 const UNIT_ALIASES = new Map([
-  ["CJ", "CJ"], ["CAJ", "CJ"], ["CAJA", "CJ"], ["CAJAS", "CJ"],
-  ["UND", "UND"], ["UN", "UND"], ["UNIDAD", "UND"], ["UNIDADES", "UND"], ["PZA", "UND"], ["PIEZA", "UND"],
-  ["MT", "MT"], ["M", "MT"], ["METRO", "MT"], ["METROS", "MT"],
-  ["PAQ", "PAQ"], ["PAQUETE", "PAQ"], ["PAQUETES", "PAQ"],
+  ["CJ", "CJ"], ["CAJ", "CJ"], ["CAJA", "CJ"], ["CAJAS", "CJ"], ["BULTO", "CJ"], ["BULTOS", "CJ"],
+  ["UND", "UND"], ["UN", "UND"], ["UNID", "UND"], ["UNIDAD", "UND"], ["UNIDADES", "UND"], ["PZA", "UND"], ["PZAS", "UND"], ["PIEZA", "UND"], ["PIEZAS", "UND"],
+  ["MT", "MT"], ["MTS", "MT"], ["M", "MT"], ["METRO", "MT"], ["METROS", "MT"],
+  ["PAQ", "PAQ"], ["PAQS", "PAQ"], ["PAQUETE", "PAQ"], ["PAQUETES", "PAQ"],
   ["JGO", "JGO"], ["JUEGO", "JGO"], ["JUEGOS", "JGO"]
 ]);
 
 function parseUnit(value) {
   const normalized = normalizeHeader(value);
   const unit = UNIT_ALIASES.get(normalized);
-  return UNITS.includes(unit) ? unit : "";
+  return unit && UNITS.includes(unit) ? unit : "";
 }
 
 function quantityAndUnit(value, separateUnit) {
-  const match = /^\s*(\d+(?:[.,]\d+)?)\s*([^\d\s].*?)?\s*$/.exec(String(value || ""));
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const match = /^\s*(\d+(?:[.,]\d+)?)\s*([^\d\s].*?)?\s*$/.exec(raw);
   if (!match) return null;
   const quantity = Number(match[1].replace(",", "."));
   if (!Number.isFinite(quantity) || quantity <= 0) return null;
@@ -186,12 +188,14 @@ function productRows(rows) {
     }
     lines.push({
       code,
-      item: String(row.cells.get(itemColumn) || "").trim(),
-      description: String(row.cells.get(descriptionColumn) || "").trim(),
+      item: itemColumn >= 0 ? String(row.cells.get(itemColumn) || "").trim() : "",
+      description: descriptionColumn >= 0 ? String(row.cells.get(descriptionColumn) || "").trim() : "",
       ...parsed
     });
   }
-  if (!lines.length) throw new Error("No encontré renglones con código, cantidad y una unidad válida (CJ, UND, MT, PAQ o JGO).");
+  if (!lines.length) {
+    throw new Error("No encontré renglones con código, cantidad y una unidad válida (CJ, UND, MT, PAQ o JGO).");
+  }
   return { lines, skippedRows };
 }
 
